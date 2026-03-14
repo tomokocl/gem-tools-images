@@ -299,6 +299,68 @@
             border-radius: 6px;
             font-size: 0.8rem;
         }
+
+        .design-preview-wrapper {
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .design-preview-wrapper.show {
+            display: block;
+        }
+
+        .design-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .design-preview-header .panel-title {
+            font-size: 0.9rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .design-preview {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 200px;
+        }
+
+        .design-preview iframe {
+            width: 100%;
+            min-height: 400px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 0;
+        }
+
+        .tab {
+            padding: 0.4rem 1rem;
+            background: #222;
+            color: #888;
+            border: 1px solid #333;
+            border-bottom: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            border-radius: 6px 6px 0 0;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border-color: #555;
+        }
     </style>
 </head>
 <body>
@@ -337,6 +399,7 @@
                     <div class="btn-group">
                         <select class="prompt-select" id="promptSelect">
                             <option value="extract">テキスト抽出</option>
+                            <option value="design">デザインごと抽出</option>
                             <option value="structured">構造化抽出</option>
                             <option value="translate">抽出+英訳</option>
                         </select>
@@ -344,6 +407,23 @@
                     </div>
                 </div>
                 <textarea id="extractedText" placeholder="ここに抽出されたテキストが表示されます。&#10;抽出後は自由に編集できます。"></textarea>
+            </div>
+        </div>
+
+        <div class="design-preview-wrapper" id="designPreviewWrapper">
+            <div class="design-preview-header">
+                <span class="panel-title">デザインプレビュー</span>
+                <div class="btn-group">
+                    <div class="tabs">
+                        <div class="tab active" id="tabPreview" onclick="switchTab('preview')">プレビュー</div>
+                        <div class="tab" id="tabCode" onclick="switchTab('code')">HTML/CSS</div>
+                    </div>
+                    <button class="btn btn-secondary" onclick="copyDesignCode()">HTMLコピー</button>
+                    <button class="btn btn-secondary" onclick="downloadDesignHTML()">DL</button>
+                </div>
+            </div>
+            <div class="design-preview" id="designPreview">
+                <iframe id="designIframe" sandbox="allow-same-origin"></iframe>
             </div>
         </div>
     </div>
@@ -387,9 +467,23 @@
             }
         });
 
+        const designPreviewWrapper = document.getElementById('designPreviewWrapper');
+        const designIframe = document.getElementById('designIframe');
+        let lastDesignHTML = '';
+
         // プロンプト定義
         const prompts = {
             extract: 'この画像に含まれるすべてのテキストを正確に抽出してください。レイアウトや改行をできるだけ保持してください。テキストのみを出力し、説明は不要です。',
+            design: `この画像のテキストデザインをHTML/CSSで完全に再現してください。
+
+ルール:
+- 完全な1つのHTMLファイルとして出力（<!DOCTYPE html>から</html>まで）
+- テキストの内容、フォントサイズ、太さ、色、背景色、配置、余白をできるだけ忠実に再現
+- Google Fontsの Noto Sans JP を使用
+- テキストは全てHTMLテキストとして記述（画像は使わない）
+- レスポンシブ対応不要、元画像の見た目に忠実に
+- 説明テキストは一切不要、HTMLコードのみを出力
+- コードブロック(\`\`\`)で囲まない、純粋なHTMLのみ`,
             structured: 'この画像に含まれるテキストを構造化して抽出してください。見出し、本文、日時、名前などを分類し、Markdown形式で出力してください。',
             translate: 'この画像に含まれるすべてのテキストを抽出し、その後に英語翻訳を付けてください。フォーマット:\n\n【原文】\n(抽出テキスト)\n\n【English Translation】\n(翻訳)'
         };
@@ -554,7 +648,7 @@
                     },
                     body: JSON.stringify({
                         model: 'claude-sonnet-4-20250514',
-                        max_tokens: 4096,
+                        max_tokens: promptSelect.value === 'design' ? 8192 : 4096,
                         messages: [{
                             role: 'user',
                             content: [
@@ -586,7 +680,22 @@
                     .map(c => c.text)
                     .join('\n');
 
-                extractedText.value = text;
+                const isDesignMode = promptSelect.value === 'design';
+
+                if (isDesignMode) {
+                    // HTMLコードを抽出（```で囲まれてる場合も対処）
+                    let htmlCode = text.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim();
+                    lastDesignHTML = htmlCode;
+                    extractedText.value = htmlCode;
+                    designPreviewWrapper.classList.add('show');
+                    renderDesignPreview(htmlCode);
+                    switchTab('preview');
+                } else {
+                    extractedText.value = text;
+                    designPreviewWrapper.classList.remove('show');
+                    lastDesignHTML = '';
+                }
+
                 statusEl.textContent = '抽出完了！';
                 statusEl.className = 'status';
             } catch (err) {
@@ -595,18 +704,76 @@
             }
         }
 
+        function renderDesignPreview(html) {
+            const doc = designIframe.contentDocument;
+            doc.open();
+            doc.write(html);
+            doc.close();
+            // iframeの高さを中身に合わせる
+            setTimeout(() => {
+                try {
+                    const h = doc.documentElement.scrollHeight;
+                    designIframe.style.height = Math.max(400, h + 20) + 'px';
+                } catch(e) {}
+            }, 500);
+        }
+
+        function switchTab(tab) {
+            const tabPreview = document.getElementById('tabPreview');
+            const tabCode = document.getElementById('tabCode');
+            if (tab === 'preview') {
+                tabPreview.classList.add('active');
+                tabCode.classList.remove('active');
+                designIframe.style.display = 'block';
+                extractedText.style.display = 'none';
+            } else {
+                tabCode.classList.add('active');
+                tabPreview.classList.remove('active');
+                designIframe.style.display = 'none';
+                extractedText.style.display = 'block';
+            }
+        }
+
         function copyText() {
             const text = extractedText.value;
             if (!text) return;
             navigator.clipboard.writeText(text).then(() => {
-                const toast = document.getElementById('toast');
-                toast.classList.add('show');
-                setTimeout(() => toast.classList.remove('show'), 2000);
+                showToast('コピーしました！');
             });
+        }
+
+        function copyDesignCode() {
+            if (!lastDesignHTML) return;
+            navigator.clipboard.writeText(lastDesignHTML).then(() => {
+                showToast('HTMLをコピーしました！');
+            });
+        }
+
+        function downloadDesignHTML() {
+            if (!lastDesignHTML) return;
+            const blob = new Blob([lastDesignHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'extracted-design.html';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('ダウンロードしました！');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
         }
 
         // プロンプト変更時に再実行
         promptSelect.addEventListener('change', () => {
+            if (promptSelect.value !== 'design') {
+                designPreviewWrapper.classList.remove('show');
+                extractedText.style.display = 'block';
+            }
             if (currentImageBase64) {
                 extractWithClaude();
             }
