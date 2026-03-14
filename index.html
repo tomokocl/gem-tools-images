@@ -567,24 +567,36 @@
                 });
             }
 
-            (lastAnalysisData.elements || []).forEach(el => {
-                if (el.type !== 'text') return;
+            const textElements = (lastAnalysisData.elements || []).filter(el => el.type === 'text');
+            console.log('PPTX生成: テキスト要素数:', textElements.length, textElements);
 
+            textElements.forEach(el => {
                 const text = (el.text || '').replace(/\\n/g, '\n');
                 const xInch = (el.x / 100) * slideW;
                 const yInch = (el.y / 100) * slideH;
                 // px→pt: 元画像のpxをスライド上のptに変換
                 const fontSizePt = Math.max(8, Math.round((el.fontSize || 16) * slideW * 72 / imgW));
                 const color = (el.textColor || '#FFFFFF').replace(/^#/, '');
+                // テキスト幅を文字数とフォントサイズから推定（インチ）
+                const charCount = text.replace(/\n/g, '').length;
+                const estWidthInch = Math.max(1, charCount * fontSizePt / 72 * 0.7);
+                const wInch = Math.min(estWidthInch, slideW - xInch);
+                const lines = text.split('\n').length;
+                const hInch = Math.max(0.5, lines * fontSizePt / 72 * 1.4);
+
+                console.log(`  テキスト: "${text}" x:${xInch.toFixed(2)} y:${yInch.toFixed(2)} w:${wInch.toFixed(2)} h:${hInch.toFixed(2)} pt:${fontSizePt} color:${color}`);
 
                 slide.addText(text, {
                     x: xInch,
                     y: yInch,
+                    w: wInch,
+                    h: hInch,
                     fontFace: 'Noto Sans JP',
                     fontSize: fontSizePt,
                     color: color,
                     bold: el.fontWeight === 'bold' || el.fontWeight === '900',
                     isTextBox: true,
+                    valign: 'top',
                 });
             });
 
