@@ -197,7 +197,7 @@
                 </div>
             </div>
             <div class="layer-editor-container" id="layerEditorContainer"></div>
-            <p class="layer-hint">PPTXをCanvaにインポート → 背景画像を削除 → テキストだけ編集可能</p>
+            <p class="layer-hint">PPTXをCanvaにインポート → テキストをクリックして直接編集可能（背景色の矩形で元テキストを隠しています）</p>
         </div>
     </div>
 
@@ -248,19 +248,25 @@
         // プロンプト定義
         const prompts = {
             extract: 'この画像に含まれるすべてのテキストを正確に抽出してください。レイアウトや改行をできるだけ保持してください。テキストのみを出力し、説明は不要です。',
-            layer_analyze: `この画像のテキスト要素のみを分析してください。
+            layer_analyze: `この画像のテキスト要素を分析し、Canvaで編集可能なPPTXを作るためのデータを出力してください。
 
 ## ★最重要ルール
 - テキスト要素(type: "text")のみを抽出する
 - 装飾的な図形（帯、矩形、ストライプ、ライン、ポリゴン等）は一切含めない
 - 背景のデザイン要素（斜め線、グラデーション、写真等）は一切含めない
-- 出力するのはテキストだけ
+
+## ★重要: 背景色の検出
+各テキストの「すぐ後ろにある色」を正確に検出してください。
+これは元画像のテキストを矩形で塗りつぶして隠すために使います。
+- テキストが白帯の上にある → backgroundColor: "#FFFFFF"
+- テキストが暗い写真の上にある → backgroundColor: "#1a1a1a" (その部分の平均色)
+- テキストがカラフルな帯の上にある → その帯の色
 
 ## 分析手順
 1. 画像全体のアスペクト比を確認
 2. テキスト要素を上から順番にリストアップ
-3. 各テキストの位置・サイズ・色・太さを計測
-4. 各要素のy座標を上から順に確認
+3. 各テキストの位置・サイズ・色・太さ・背景色を計測
+4. 各テキストの占める範囲(width, height %)を計測
 
 以下の形式でJSONとして出力（説明不要、JSONのみ）:
 
@@ -272,20 +278,21 @@
       "description": "要素の説明",
       "x": 画像左端からの位置(%),
       "y": 画像上端からの位置(%),
+      "width": テキスト領域の幅(%),
+      "height": テキスト領域の高さ(%),
       "text": "テキスト内容",
       "fontSize": フォントサイズpx推定,
       "fontWeight": "bold等",
-      "textColor": "#hex色"
+      "textColor": "#hex色",
+      "backgroundColor": "#テキスト背後の色"
     }
-  ],
-  "verticalOrder": [
-    { "description": "要素の説明", "yTop": 上端(%), "yBottom": 下端(%), "gapToNext": 次の要素との間隔(%) }
   ]
 }
 
 ## 計測の注意点:
 - 座標と寸法はすべて画像全体に対する%
-- ★verticalOrder: 全テキストを上から順に並べ、各要素の上端・下端・次との間隔を記録
+- width/heightはテキストが占める領域（少し余裕を持たせる）
+- backgroundColor: テキストのすぐ後ろの色を正確に。グラデーションの場合は中央の色
 - 色は元画像から正確に推定
 - テキストの改行は\\nで表現
 - 全テキストを漏れなく含めること（小さい文字も見落とさない）`,
@@ -525,6 +532,20 @@
 
             (lastAnalysisData.elements || []).forEach(el => {
                 if (el.type !== 'text') return;
+
+                // 背景色矩形（テキスト隠し用）
+                if (el.backgroundColor && el.width && el.height) {
+                    const bgRect = document.createElement('div');
+                    bgRect.style.position = 'absolute';
+                    bgRect.style.left = el.x + '%';
+                    bgRect.style.top = el.y + '%';
+                    bgRect.style.width = el.width + '%';
+                    bgRect.style.height = el.height + '%';
+                    bgRect.style.backgroundColor = el.backgroundColor;
+                    bgRect.style.border = '1px dashed rgba(255,107,107,0.3)';
+                    previewDiv.appendChild(bgRect);
+                }
+
                 const span = document.createElement('div');
                 span.style.position = 'absolute';
                 span.style.left = el.x + '%';
@@ -570,21 +591,55 @@
             const textElements = (lastAnalysisData.elements || []).filter(el => el.type === 'text');
             console.log('PPTX生成: テキスト要素数:', textElements.length, textElements);
 
+            // パス1: 背景色の矩形を配置して元画像のテキストを隠す
+            textElements.forEach(el => {
+                const bgColor = (el.backgroundColor || '').replace(/^#/, '');
+                if (!bgColor) return;
+
+                const xInch = (el.x / 100) * slideW;
+                const yInch = (el.y / 100) * slideH;
+                const wInch = el.width ? (el.width / 100) * slideW : null;
+                const hInch = el.height ? (el.height / 100) * slideH : null;
+
+                if (!wInch || !hInch) return;
+
+                // 少し余裕を持たせた矩形
+                const padX = wInch * 0.05;
+                const padY = hInch * 0.1;
+                slide.addShape(pptx.ShapeType.rect, {
+                    x: Math.max(0, xInch - padX),
+                    y: Math.max(0, yInch - padY),
+                    w: Math.min(wInch + padX * 2, slideW),
+                    h: hInch + padY * 2,
+                    fill: { color: bgColor },
+                    line: { color: bgColor, width: 0 },
+                });
+            });
+
+            // パス2: 編集可能なテキストボックスを配置
             textElements.forEach(el => {
                 const text = (el.text || '').replace(/\\n/g, '\n');
                 const xInch = (el.x / 100) * slideW;
                 const yInch = (el.y / 100) * slideH;
-                // px→pt: 元画像のpxをスライド上のptに変換
                 const fontSizePt = Math.max(8, Math.round((el.fontSize || 16) * slideW * 72 / imgW));
                 const color = (el.textColor || '#FFFFFF').replace(/^#/, '');
-                // テキスト幅を文字数とフォントサイズから推定（インチ）
-                const charCount = text.replace(/\n/g, '').length;
-                const estWidthInch = Math.max(1, charCount * fontSizePt / 72 * 0.7);
-                const wInch = Math.min(estWidthInch, slideW - xInch);
-                const lines = text.split('\n').length;
-                const hInch = Math.max(0.5, lines * fontSizePt / 72 * 1.4);
 
-                console.log(`  テキスト: "${text}" x:${xInch.toFixed(2)} y:${yInch.toFixed(2)} w:${wInch.toFixed(2)} h:${hInch.toFixed(2)} pt:${fontSizePt} color:${color}`);
+                // AI検出のwidth/heightを使用、なければ推定
+                let wInch, hInch;
+                if (el.width) {
+                    wInch = (el.width / 100) * slideW;
+                } else {
+                    const charCount = text.replace(/\n/g, '').length;
+                    wInch = Math.min(Math.max(1, charCount * fontSizePt / 72 * 0.7), slideW - xInch);
+                }
+                if (el.height) {
+                    hInch = (el.height / 100) * slideH;
+                } else {
+                    const lines = text.split('\n').length;
+                    hInch = Math.max(0.5, lines * fontSizePt / 72 * 1.4);
+                }
+
+                console.log(`  テキスト: "${text}" x:${xInch.toFixed(2)} y:${yInch.toFixed(2)} w:${wInch.toFixed(2)} h:${hInch.toFixed(2)} pt:${fontSizePt} color:${color} bg:${el.backgroundColor}`);
 
                 slide.addText(text, {
                     x: xInch,
