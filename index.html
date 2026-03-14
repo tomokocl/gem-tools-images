@@ -247,34 +247,26 @@
         // プロンプト定義
         const prompts = {
             extract: 'この画像に含まれるすべてのテキストを正確に抽出してください。レイアウトや改行をできるだけ保持してください。テキストのみを出力し、説明は不要です。',
-            layer: `この画像内のすべてのテキスト要素を解析してJSON配列で出力してください。
-画像サイズは幅1200px × 高さ675px と仮定してください。
+            layer: `この画像内のテキストとその装飾を、SVGコードとして忠実に再現してください。
+画像のアスペクト比を維持し、viewBox="0 0 1200 675" としてください。
 
-出力はJSON配列のみ（説明不要、コードブロック不要）:
-[
-  {
-    "text": "テキスト内容（途中で切らず完全な文字列）",
-    "x": 左端からのピクセル座標(数値),
-    "y": テキスト上端からのピクセル座標(数値),
-    "fontSize": フォントサイズ(px数値),
-    "fontWeight": "bold" or "normal" or "900",
-    "color": "#FFFFFF" 等の色コード,
-    "bgColor": テキスト背景色がある場合 "#FF0000" 等（なければnull）,
-    "bgPadding": 背景のパディング（px数値、bgColorがある場合のみ、デフォルト8）,
-    "width": テキスト領域の幅(px数値、折り返しがある場合のみ),
-    "letterSpacing": 文字間隔(px数値、広い場合のみ),
-    "decoration": "underline" or null（下線がある場合）
-  }
-]
+出力ルール:
+- <svg>タグから</svg>まで、SVGコードのみを出力（説明不要、コードブロック不要）
+- 背景画像は含めない（背景は透過）
+- テキストは全て <text> 要素で記述
+- テキスト背景の帯やハイライトは <rect> で再現（テキストの前に配置）
+- 区切り線は <line> で再現
+- font-family は "Noto Sans JP, sans-serif"
+- 色、フォントサイズ、太さ、位置を元画像に忠実に再現
+- テキストの改行は <tspan> で再現し、元の改行位置を保持
+- テキストを途中で切らない。全て完全に含める
+- 写真や人物は含めない。テキストと装飾要素のみ
 
-重要ルール:
-- 全てのテキストを漏れなく、途中で切らず完全に含める
-- テキスト背景（ハイライト、帯、ラベル背景など）があれば bgColor で指定
-- 区切り線や装飾線がある場合はtype:"line"の要素として含める:
-  {"type":"line","x1":始点x,"y1":始点y,"x2":終点x,"y2":終点y,"color":"#色","strokeWidth":太さ}
-- 位置は画像内での見た目通りに正確に
-- 改行が含まれるテキストは \\n で1要素にまとめてOK
-- x, y はピクセル単位（1200x675基準）`,
+SVGの例:
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675">
+  <rect x="350" y="100" width="500" height="80" fill="#E5243B" rx="0"/>
+  <text x="370" y="155" font-family="Noto Sans JP, sans-serif" font-size="60" font-weight="900" fill="#FFFFFF">見出しテキスト</text>
+</svg>`,
             design: `この画像のテキストデザインをHTML/CSSで完全に再現してください。
 
 ルール:
@@ -459,110 +451,52 @@
         }
 
         // === Canva用SVG ===
-        const SVG_W = 1200, SVG_H = 675;
-        let lastSVGData = null; // { layers, svgFull, svgTextOnly }
+        let lastSVGCode = '';
 
         function handleLayerResult(text) {
             setNormalMode();
-            try {
-                let jsonStr = text.trim();
-                const match = jsonStr.match(/\[[\s\S]*\]/);
-                if (match) jsonStr = match[0];
-                const layers = JSON.parse(jsonStr);
 
-                // SVG生成
-                const svgFull = buildSVG(layers, true);
-                const svgTextOnly = buildSVG(layers, false);
-                lastSVGData = { layers, svgFull, svgTextOnly };
+            // SVGコードを抽出（```で囲まれてる場合も対処）
+            let svgCode = text.trim();
+            svgCode = svgCode.replace(/^```(?:svg|xml)?\n?/i, '').replace(/\n?```$/i, '').trim();
 
-                extractedText.value = layers.map(l => `[${l.fontSize}px ${l.fontWeight} ${l.color}] ${l.text}`).join('\n');
+            // <svg> タグが含まれてるか確認
+            const svgMatch = svgCode.match(/<svg[\s\S]*<\/svg>/i);
+            if (!svgMatch) {
+                extractedText.value = 'SVG生成エラー。生データ:\n\n' + text;
+                return;
+            }
+            svgCode = svgMatch[0];
 
-                // SVGボタン表示
-                document.getElementById('svgDlBtn').style.display = '';
+            // xml宣言を追加
+            lastSVGCode = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgCode;
 
-                // プレビュー表示（画像付きで確認用）
-                layerEditorContainer.innerHTML = '';
-                const previewDiv = document.createElement('div');
-                previewDiv.innerHTML = svgFull;
-                const svgEl = previewDiv.querySelector('svg');
+            extractedText.value = lastSVGCode;
+
+            // SVGボタン表示
+            document.getElementById('svgDlBtn').style.display = '';
+
+            // プレビュー（暗い背景でテキストが見えるように）
+            layerEditorContainer.innerHTML = '';
+            const previewDiv = document.createElement('div');
+            previewDiv.style.background = '#222';
+            previewDiv.style.borderRadius = '8px';
+            previewDiv.style.padding = '8px';
+            previewDiv.innerHTML = svgCode;
+            const svgEl = previewDiv.querySelector('svg');
+            if (svgEl) {
                 svgEl.style.maxWidth = '100%';
                 svgEl.style.height = 'auto';
-                svgEl.style.borderRadius = '8px';
-                layerEditorContainer.appendChild(previewDiv);
-
-                layerEditorWrapper.classList.add('show');
-            } catch (e) {
-                extractedText.value = 'JSONパースエラー。生データ:\n\n' + text;
-                layerEditorWrapper.classList.remove('show');
             }
-        }
+            layerEditorContainer.appendChild(previewDiv);
 
-        function escXml(s) {
-            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        }
-
-        function buildSVG(layers, includeImage) {
-            let elements = '';
-
-            if (includeImage && currentImageDataUrl) {
-                elements += `  <image href="${currentImageDataUrl}" x="0" y="0" width="${SVG_W}" height="${SVG_H}" preserveAspectRatio="xMidYMid slice"/>\n`;
-            }
-
-            layers.forEach((l) => {
-                // 装飾線
-                if (l.type === 'line') {
-                    elements += `  <line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${l.color || '#fff'}" stroke-width="${l.strokeWidth || 2}"/>\n`;
-                    return;
-                }
-
-                const fw = l.fontWeight === '900' ? 900 : (l.fontWeight === 'bold' ? 700 : 400);
-                const fs = l.fontSize || 24;
-                const lines = (l.text || '').split('\n');
-                const lineH = fs * 1.3;
-                const pad = l.bgPadding || 8;
-                const ls = l.letterSpacing ? ` letter-spacing="${l.letterSpacing}"` : '';
-
-                // テキスト背景ハイライト
-                if (l.bgColor) {
-                    const textW = l.width || (Math.max(...lines.map(ln => ln.length)) * fs * 0.6);
-                    const textH = lines.length * lineH;
-                    elements += `  <rect x="${l.x - pad}" y="${l.y - pad}" width="${textW + pad * 2}" height="${textH + pad * 2}" fill="${l.bgColor}" rx="4"/>\n`;
-                }
-
-                // テキスト下線
-                if (l.decoration === 'underline') {
-                    const textW = l.width || (lines[0].length * fs * 0.6);
-                    const underY = l.y + lines.length * lineH + 4;
-                    elements += `  <line x1="${l.x}" y1="${underY}" x2="${l.x + textW}" y2="${underY}" stroke="${l.color || '#fff'}" stroke-width="2"/>\n`;
-                }
-
-                // テキスト本体（dominant-baseline="hanging"で上端基準）
-                if (lines.length === 1) {
-                    elements += `  <text x="${l.x}" y="${l.y}" font-family="Noto Sans JP, sans-serif" font-size="${fs}" font-weight="${fw}" fill="${l.color || '#fff'}" dominant-baseline="hanging"${ls}>${escXml(l.text)}</text>\n`;
-                } else {
-                    elements += `  <text font-family="Noto Sans JP, sans-serif" font-size="${fs}" font-weight="${fw}" fill="${l.color || '#fff'}" dominant-baseline="hanging"${ls}>\n`;
-                    lines.forEach((line, li) => {
-                        elements += `    <tspan x="${l.x}" y="${l.y + li * lineH}">${escXml(line)}</tspan>\n`;
-                    });
-                    elements += `  </text>\n`;
-                }
-            });
-
-            return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${SVG_W} ${SVG_H}" width="${SVG_W}" height="${SVG_H}">
-${elements}</svg>`;
-        }
-
-        function downloadSVG() {
-            if (!lastSVGData) return;
-            downloadFile(lastSVGData.svgFull, 'design-with-image.svg', 'image/svg+xml');
-            showToast('SVG（画像付き）をダウンロード！');
+            layerEditorWrapper.classList.add('show');
         }
 
         function downloadSVGTextOnly() {
-            if (!lastSVGData) return;
-            downloadFile(lastSVGData.svgTextOnly, 'text-layers.svg', 'image/svg+xml');
-            showToast('SVG（テキストのみ）をダウンロード！');
+            if (!lastSVGCode) return;
+            downloadFile(lastSVGCode, 'text-layers.svg', 'image/svg+xml');
+            showToast('SVGをダウンロード！');
         }
 
         function downloadFile(content, filename, type) {
