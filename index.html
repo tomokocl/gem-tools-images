@@ -420,12 +420,15 @@
             fetch(name)
                 .then(r => r.blob())
                 .then(blob => blobToBase64(blob))
+                .then(({ base64, mediaType }) => resizeImageIfNeeded(base64, mediaType))
                 .then(({ base64, mediaType }) => {
                     currentImageBase64 = base64;
                     currentMediaType = mediaType;
                     extractWithClaude();
                 });
         }
+
+        const MAX_BASE64_BYTES = 5 * 1024 * 1024; // 5MB
 
         function blobToBase64(blob) {
             return new Promise((resolve) => {
@@ -437,6 +440,48 @@
                     resolve({ base64, mediaType });
                 };
                 reader.readAsDataURL(blob);
+            });
+        }
+
+        // 画像を5MB以下にリサイズ
+        function resizeImageIfNeeded(base64, mediaType) {
+            return new Promise((resolve) => {
+                const byteSize = atob(base64).length;
+                if (byteSize <= MAX_BASE64_BYTES) {
+                    resolve({ base64, mediaType });
+                    return;
+                }
+
+                const img = new Image();
+                img.onload = () => {
+                    let scale = Math.sqrt(MAX_BASE64_BYTES / byteSize) * 0.9; // 少し余裕を持たせる
+                    let quality = 0.85;
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    function tryResize() {
+                        canvas.width = Math.round(img.width * scale);
+                        canvas.height = Math.round(img.height * scale);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                        const resizedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                        const resizedBase64 = resizedDataUrl.split(',')[1];
+                        const resizedSize = atob(resizedBase64).length;
+
+                        if (resizedSize <= MAX_BASE64_BYTES) {
+                            statusEl.textContent = `画像をリサイズしました (${(byteSize/1024/1024).toFixed(1)}MB → ${(resizedSize/1024/1024).toFixed(1)}MB)`;
+                            resolve({ base64: resizedBase64, mediaType: 'image/jpeg' });
+                        } else {
+                            // まだ大きければ縮小を繰り返す
+                            scale *= 0.8;
+                            quality = Math.max(0.5, quality - 0.1);
+                            tryResize();
+                        }
+                    }
+
+                    tryResize();
+                };
+                img.src = `data:${mediaType};base64,${base64}`;
             });
         }
 
@@ -466,14 +511,17 @@
 
         function handleFile(file) {
             const reader = new FileReader();
-            reader.onload = e => {
+            reader.onload = async e => {
                 const dataUrl = e.target.result;
                 previewImg.src = dataUrl;
                 previewImg.style.display = 'block';
                 previewPlaceholder.style.display = 'none';
 
-                currentImageBase64 = dataUrl.split(',')[1];
-                currentMediaType = dataUrl.match(/^data:(.*?);/)[1];
+                const base64 = dataUrl.split(',')[1];
+                const mediaType = dataUrl.match(/^data:(.*?);/)[1];
+                const resized = await resizeImageIfNeeded(base64, mediaType);
+                currentImageBase64 = resized.base64;
+                currentMediaType = resized.mediaType;
                 extractWithClaude();
             };
             reader.readAsDataURL(file);
