@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像テキスト抽出ツール</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #444;
+            border-radius: 16px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #1a1a1a;
+            margin-bottom: 1.5rem;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: #ff6b6b;
+            background: #1f1a1a;
+        }
+
+        .drop-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone p {
+            color: #999;
+        }
+
+        .drop-zone .browse {
+            color: #ff6b6b;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .gallery {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .gallery-label {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .gallery-item {
+            width: 80px;
+            height: 60px;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+            opacity: 0.7;
+            transition: all 0.2s;
+        }
+
+        .gallery-item:hover {
+            opacity: 1;
+            border-color: #ff6b6b;
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .main-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .main-area {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 400px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .preview-img {
+            width: 100%;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        #extractedText {
+            width: 100%;
+            min-height: 300px;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e0e0e0;
+            padding: 1rem;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        #extractedText:focus {
+            outline: none;
+            border-color: #ff6b6b;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #333;
+            color: #ccc;
+        }
+
+        .btn-secondary:hover {
+            background: #444;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ffa500);
+            border-radius: 2px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .status {
+            font-size: 0.8rem;
+            color: #888;
+            text-align: center;
+            min-height: 1.2em;
+        }
+
+        .copy-toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333;
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            transition: transform 0.3s;
+            z-index: 100;
+        }
+
+        .copy-toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .lang-select {
+            background: #222;
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 0.4rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>画像テキスト抽出ツール</h1>
+        <p class="subtitle">画像をドロップ or 選択してテキストを抽出。抽出後はそのまま編集・コピーできます</p>
+
+        <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-icon">📷</div>
+            <p>画像をドラッグ＆ドロップ、または<span class="browse">ファイルを選択</span></p>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <span class="gallery-label">リポジトリ内の画像:</span>
+        <div class="gallery" id="gallery"></div>
+
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-bar-fill" id="progressFill"></div>
+        </div>
+        <div class="status" id="status"></div>
+
+        <div class="main-area">
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">プレビュー</span>
+                </div>
+                <img class="preview-img" id="previewImg">
+                <div class="placeholder" id="previewPlaceholder">画像を選択してください</div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">抽出テキスト</span>
+                    <div class="btn-group">
+                        <select class="lang-select" id="langSelect">
+                            <option value="jpn">日本語</option>
+                            <option value="eng">English</option>
+                            <option value="jpn+eng">日本語+English</option>
+                        </select>
+                        <button class="btn btn-secondary" id="copyBtn" onclick="copyText()">コピー</button>
+                    </div>
+                </div>
+                <textarea id="extractedText" placeholder="ここに抽出されたテキストが表示されます。&#10;抽出後は自由に編集できます。"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="copy-toast" id="toast">コピーしました！</div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const previewImg = document.getElementById('previewImg');
+        const previewPlaceholder = document.getElementById('previewPlaceholder');
+        const extractedText = document.getElementById('extractedText');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const status = document.getElementById('status');
+        const langSelect = document.getElementById('langSelect');
+        const gallery = document.getElementById('gallery');
+
+        // リポジトリ内の画像一覧
+        const repoImages = [
+            '13_ashisutannto2.png',
+            'gem00.png', 'gem01.png', 'gem02.png', 'gem03.png', 'gem04.png',
+            'gem05.png', 'gem06.png', 'gem07.png', 'gem08.png', 'gem09.png',
+            'gem10.png', 'gem11.png', 'gem13.png', 'gem14.png', 'gem15.png',
+            'gem16.png', 'gem17.png', 'gem19.png', 'gem_short.png'
+        ];
+
+        // ギャラリー生成
+        repoImages.forEach(name => {
+            const item = document.createElement('div');
+            item.className = 'gallery-item';
+            item.innerHTML = `<img src="${name}" alt="${name}" title="${name}">`;
+            item.addEventListener('click', () => loadRepoImage(name));
+            gallery.appendChild(item);
+        });
+
+        function loadRepoImage(name) {
+            previewImg.src = name;
+            previewImg.style.display = 'block';
+            previewPlaceholder.style.display = 'none';
+
+            // fetch as blob for OCR
+            fetch(name)
+                .then(r => r.blob())
+                .then(blob => {
+                    const file = new File([blob], name, { type: 'image/png' });
+                    runOCR(file);
+                });
+        }
+
+        // ドラッグ＆ドロップ
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                handleFile(file);
+            }
+        });
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', e => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = e => {
+                previewImg.src = e.target.result;
+                previewImg.style.display = 'block';
+                previewPlaceholder.style.display = 'none';
+                runOCR(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function runOCR(imageSource) {
+            const lang = langSelect.value;
+            progressBar.style.display = 'block';
+            progressFill.style.width = '0%';
+            status.textContent = 'OCRエンジンを読み込み中...';
+            extractedText.value = '';
+
+            try {
+                const result = await Tesseract.recognize(imageSource, lang, {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const pct = Math.round(m.progress * 100);
+                            progressFill.style.width = pct + '%';
+                            status.textContent = `テキスト認識中... ${pct}%`;
+                        } else {
+                            status.textContent = m.status;
+                        }
+                    }
+                });
+
+                extractedText.value = result.data.text;
+                status.textContent = `完了！ (信頼度: ${Math.round(result.data.confidence)}%)`;
+                progressFill.style.width = '100%';
+
+                setTimeout(() => {
+                    progressBar.style.display = 'none';
+                }, 2000);
+            } catch (err) {
+                status.textContent = 'エラー: ' + err.message;
+                progressBar.style.display = 'none';
+            }
+        }
+
+        function copyText() {
+            const text = extractedText.value;
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                const toast = document.getElementById('toast');
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 2000);
+            });
+        }
+
+        // 言語変更時に再実行
+        langSelect.addEventListener('change', () => {
+            if (previewImg.src && previewImg.style.display !== 'none') {
+                // re-run with current image
+                if (previewImg.src.startsWith('data:')) {
+                    fetch(previewImg.src)
+                        .then(r => r.blob())
+                        .then(blob => runOCR(blob));
+                } else {
+                    fetch(previewImg.src)
+                        .then(r => r.blob())
+                        .then(blob => runOCR(blob));
+                }
+            }
+        });
+    </script>
+</body>
+</html>
