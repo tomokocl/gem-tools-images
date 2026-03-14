@@ -253,20 +253,27 @@
 出力はJSON配列のみ（説明不要、コードブロック不要）:
 [
   {
-    "text": "テキスト内容",
+    "text": "テキスト内容（途中で切らず完全な文字列）",
     "x": 左端からのピクセル座標(数値),
-    "y": テキストのベースラインのピクセル座標(数値),
+    "y": テキスト上端からのピクセル座標(数値),
     "fontSize": フォントサイズ(px数値),
     "fontWeight": "bold" or "normal" or "900",
-    "color": "#FFFFFF" 等の色コード
+    "color": "#FFFFFF" 等の色コード,
+    "bgColor": テキスト背景色がある場合 "#FF0000" 等（なければnull）,
+    "bgPadding": 背景のパディング（px数値、bgColorがある場合のみ、デフォルト8）,
+    "width": テキスト領域の幅(px数値、折り返しがある場合のみ),
+    "letterSpacing": 文字間隔(px数値、広い場合のみ),
+    "decoration": "underline" or null（下線がある場合）
   }
 ]
 
-注意:
-- 全てのテキストを漏れなく含める
-- 背景に溶け込む装飾テキストも含める
+重要ルール:
+- 全てのテキストを漏れなく、途中で切らず完全に含める
+- テキスト背景（ハイライト、帯、ラベル背景など）があれば bgColor で指定
+- 区切り線や装飾線がある場合はtype:"line"の要素として含める:
+  {"type":"line","x1":始点x,"y1":始点y,"x2":終点x,"y2":終点y,"color":"#色","strokeWidth":太さ}
 - 位置は画像内での見た目通りに正確に
-- 改行が含まれるテキストは行ごとに別要素にする
+- 改行が含まれるテキストは \\n で1要素にまとめてOK
 - x, y はピクセル単位（1200x675基準）`,
             design: `この画像のテキストデザインをHTML/CSSで完全に再現してください。
 
@@ -473,12 +480,14 @@
                 // SVGボタン表示
                 document.getElementById('svgDlBtn').style.display = '';
 
-                // プレビュー表示
+                // プレビュー表示（画像付きで確認用）
                 layerEditorContainer.innerHTML = '';
                 const previewDiv = document.createElement('div');
                 previewDiv.innerHTML = svgFull;
-                previewDiv.querySelector('svg').style.maxWidth = '100%';
-                previewDiv.querySelector('svg').style.height = 'auto';
+                const svgEl = previewDiv.querySelector('svg');
+                svgEl.style.maxWidth = '100%';
+                svgEl.style.height = 'auto';
+                svgEl.style.borderRadius = '8px';
                 layerEditorContainer.appendChild(previewDiv);
 
                 layerEditorWrapper.classList.add('show');
@@ -493,26 +502,47 @@
         }
 
         function buildSVG(layers, includeImage) {
-            let defs = '';
             let elements = '';
 
             if (includeImage && currentImageDataUrl) {
                 elements += `  <image href="${currentImageDataUrl}" x="0" y="0" width="${SVG_W}" height="${SVG_H}" preserveAspectRatio="xMidYMid slice"/>\n`;
             }
 
-            layers.forEach((l, i) => {
+            layers.forEach((l) => {
+                // 装飾線
+                if (l.type === 'line') {
+                    elements += `  <line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${l.color || '#fff'}" stroke-width="${l.strokeWidth || 2}"/>\n`;
+                    return;
+                }
+
                 const fw = l.fontWeight === '900' ? 900 : (l.fontWeight === 'bold' ? 700 : 400);
-                const lines = l.text.split('\n');
+                const fs = l.fontSize || 24;
+                const lines = (l.text || '').split('\n');
+                const lineH = fs * 1.3;
+                const pad = l.bgPadding || 8;
+                const ls = l.letterSpacing ? ` letter-spacing="${l.letterSpacing}"` : '';
+
+                // テキスト背景ハイライト
+                if (l.bgColor) {
+                    const textW = l.width || (Math.max(...lines.map(ln => ln.length)) * fs * 0.6);
+                    const textH = lines.length * lineH;
+                    elements += `  <rect x="${l.x - pad}" y="${l.y - pad}" width="${textW + pad * 2}" height="${textH + pad * 2}" fill="${l.bgColor}" rx="4"/>\n`;
+                }
+
+                // テキスト下線
+                if (l.decoration === 'underline') {
+                    const textW = l.width || (lines[0].length * fs * 0.6);
+                    const underY = l.y + lines.length * lineH + 4;
+                    elements += `  <line x1="${l.x}" y1="${underY}" x2="${l.x + textW}" y2="${underY}" stroke="${l.color || '#fff'}" stroke-width="2"/>\n`;
+                }
+
+                // テキスト本体（dominant-baseline="hanging"で上端基準）
                 if (lines.length === 1) {
-                    elements += `  <text x="${l.x}" y="${l.y}" font-family="Noto Sans JP, sans-serif" font-size="${l.fontSize}" font-weight="${fw}" fill="${l.color}">${escXml(l.text)}</text>\n`;
+                    elements += `  <text x="${l.x}" y="${l.y}" font-family="Noto Sans JP, sans-serif" font-size="${fs}" font-weight="${fw}" fill="${l.color || '#fff'}" dominant-baseline="hanging"${ls}>${escXml(l.text)}</text>\n`;
                 } else {
-                    elements += `  <text x="${l.x}" y="${l.y}" font-family="Noto Sans JP, sans-serif" font-size="${l.fontSize}" font-weight="${fw}" fill="${l.color}">\n`;
+                    elements += `  <text font-family="Noto Sans JP, sans-serif" font-size="${fs}" font-weight="${fw}" fill="${l.color || '#fff'}" dominant-baseline="hanging"${ls}>\n`;
                     lines.forEach((line, li) => {
-                        if (li === 0) {
-                            elements += `    <tspan x="${l.x}" dy="0">${escXml(line)}</tspan>\n`;
-                        } else {
-                            elements += `    <tspan x="${l.x}" dy="${l.fontSize * 1.3}">${escXml(line)}</tspan>\n`;
-                        }
+                        elements += `    <tspan x="${l.x}" y="${l.y + li * lineH}">${escXml(line)}</tspan>\n`;
                     });
                     elements += `  </text>\n`;
                 }
