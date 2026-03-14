@@ -174,8 +174,7 @@
                             <option value="translate">抽出+英訳</option>
                         </select>
                         <button class="btn btn-secondary" id="copyBtn" onclick="copyText()">コピー</button>
-                        <button class="btn btn-secondary" id="svgDlBtn" style="display:none" onclick="downloadSVG()">SVG DL</button>
-                        <button class="btn btn-secondary" id="svgTextDlBtn" style="display:none" onclick="downloadSVGTextOnly()">テキストのみSVG</button>
+                        <button class="btn btn-secondary" id="svgDlBtn" style="display:none" onclick="downloadSVGTextOnly()">SVG DL (背景透過)</button>
                     </div>
                 </div>
                 <div class="design-tabs" id="designTabs">
@@ -191,10 +190,9 @@
         <!-- レイヤーエディタ（全幅表示） -->
         <div class="layer-editor-wrapper" id="layerEditorWrapper">
             <div class="layer-editor-header">
-                <span class="panel-title">SVGプレビュー — テキストは個別オブジェクト</span>
+                <span class="panel-title">SVGプレビュー — 背景透過・テキストのみ</span>
                 <div class="btn-group">
-                    <button class="btn btn-secondary" onclick="downloadSVG()">SVGダウンロード</button>
-                    <button class="btn btn-secondary" onclick="downloadSVGTextOnly()">テキストのみSVG</button>
+                    <button class="btn btn-secondary" onclick="downloadSVGTextOnly()">SVG DL (背景透過)</button>
                 </div>
             </div>
             <div class="layer-editor-container" id="layerEditorContainer"></div>
@@ -474,7 +472,6 @@
 
                 // SVGボタン表示
                 document.getElementById('svgDlBtn').style.display = '';
-                document.getElementById('svgTextDlBtn').style.display = '';
 
                 // プレビュー表示
                 layerEditorContainer.innerHTML = '';
@@ -594,7 +591,6 @@ ${elements}</svg>`;
             lastDesignHTML = '';
             copyBtn.textContent = 'コピー';
             document.getElementById('svgDlBtn').style.display = 'none';
-            document.getElementById('svgTextDlBtn').style.display = 'none';
         }
 
         function copyText() {
