@@ -300,48 +300,15 @@
             font-size: 0.8rem;
         }
 
-        .design-preview-wrapper {
+        .design-tabs {
             display: none;
-            margin-top: 1.5rem;
-        }
-
-        .design-preview-wrapper.show {
-            display: block;
-        }
-
-        .design-preview-header {
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .design-preview-header .panel-title {
-            font-size: 0.9rem;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .design-preview {
-            background: #1a1a1a;
-            border-radius: 12px;
-            padding: 1.5rem;
-            min-height: 200px;
-        }
-
-        .design-preview iframe {
-            width: 100%;
-            min-height: 400px;
-            border: 1px solid #333;
-            border-radius: 8px;
-            background: #fff;
-        }
-
-        .tabs {
-            display: flex;
             gap: 0;
-            margin-bottom: 0;
+            margin-bottom: 0.75rem;
+        }
+
+        .design-tabs.show {
+            display: flex;
         }
 
         .tab {
@@ -349,17 +316,17 @@
             background: #222;
             color: #888;
             border: 1px solid #333;
-            border-bottom: none;
             cursor: pointer;
             font-size: 0.8rem;
-            border-radius: 6px 6px 0 0;
+            border-radius: 6px;
             transition: all 0.2s;
+            margin-right: 0.25rem;
         }
 
         .tab.active {
-            background: #1a1a1a;
+            background: #444;
             color: #e0e0e0;
-            border-color: #555;
+            border-color: #666;
         }
     </style>
 </head>
@@ -395,7 +362,7 @@
             </div>
             <div class="panel">
                 <div class="panel-header">
-                    <span class="panel-title">抽出テキスト</span>
+                    <span class="panel-title" id="rightPanelTitle">抽出テキスト</span>
                     <div class="btn-group">
                         <select class="prompt-select" id="promptSelect">
                             <option value="extract">テキスト抽出</option>
@@ -403,27 +370,19 @@
                             <option value="structured">構造化抽出</option>
                             <option value="translate">抽出+英訳</option>
                         </select>
-                        <button class="btn btn-secondary" onclick="copyText()">コピー</button>
+                        <button class="btn btn-secondary" id="copyBtn" onclick="copyText()">コピー</button>
                     </div>
                 </div>
+                <!-- デザインモード時のタブ -->
+                <div class="design-tabs" id="designTabs">
+                    <div class="tab active" id="tabPreview" onclick="switchTab('preview')">プレビュー</div>
+                    <div class="tab" id="tabCode" onclick="switchTab('code')">HTML/CSS</div>
+                    <button class="btn btn-secondary" style="margin-left:auto" onclick="downloadDesignHTML()">DL</button>
+                </div>
+                <!-- プレビュー用iframe -->
+                <iframe id="designIframe" style="display:none; width:100%; min-height:350px; border:1px solid #333; border-radius:8px; background:#fff;"></iframe>
+                <!-- テキスト表示 -->
                 <textarea id="extractedText" placeholder="ここに抽出されたテキストが表示されます。&#10;抽出後は自由に編集できます。"></textarea>
-            </div>
-        </div>
-
-        <div class="design-preview-wrapper" id="designPreviewWrapper">
-            <div class="design-preview-header">
-                <span class="panel-title">デザインプレビュー</span>
-                <div class="btn-group">
-                    <div class="tabs">
-                        <div class="tab active" id="tabPreview" onclick="switchTab('preview')">プレビュー</div>
-                        <div class="tab" id="tabCode" onclick="switchTab('code')">HTML/CSS</div>
-                    </div>
-                    <button class="btn btn-secondary" onclick="copyDesignCode()">HTMLコピー</button>
-                    <button class="btn btn-secondary" onclick="downloadDesignHTML()">DL</button>
-                </div>
-            </div>
-            <div class="design-preview" id="designPreview">
-                <iframe id="designIframe" sandbox="allow-same-origin"></iframe>
             </div>
         </div>
     </div>
@@ -467,8 +426,10 @@
             }
         });
 
-        const designPreviewWrapper = document.getElementById('designPreviewWrapper');
         const designIframe = document.getElementById('designIframe');
+        const designTabs = document.getElementById('designTabs');
+        const rightPanelTitle = document.getElementById('rightPanelTitle');
+        const copyBtn = document.getElementById('copyBtn');
         let lastDesignHTML = '';
 
         // プロンプト定義
@@ -687,13 +648,13 @@
                     let htmlCode = text.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim();
                     lastDesignHTML = htmlCode;
                     extractedText.value = htmlCode;
-                    designPreviewWrapper.classList.add('show');
+                    designTabs.classList.add('show');
                     renderDesignPreview(htmlCode);
                     switchTab('preview');
+                    copyBtn.textContent = 'HTMLコピー';
                 } else {
                     extractedText.value = text;
-                    designPreviewWrapper.classList.remove('show');
-                    lastDesignHTML = '';
+                    setNormalMode();
                 }
 
                 statusEl.textContent = '抽出完了！';
@@ -734,6 +695,14 @@
             }
         }
 
+        function setNormalMode() {
+            designTabs.classList.remove('show');
+            designIframe.style.display = 'none';
+            extractedText.style.display = 'block';
+            lastDesignHTML = '';
+            copyBtn.textContent = 'コピー';
+        }
+
         function copyText() {
             const text = extractedText.value;
             if (!text) return;
@@ -771,8 +740,7 @@
         // プロンプト変更時に再実行
         promptSelect.addEventListener('change', () => {
             if (promptSelect.value !== 'design') {
-                designPreviewWrapper.classList.remove('show');
-                extractedText.style.display = 'block';
+                setNormalMode();
             }
             if (currentImageBase64) {
                 extractWithClaude();
