@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>画像テキスト抽出ツール</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -168,13 +169,13 @@
                     <div class="btn-group">
                         <select class="prompt-select" id="promptSelect">
                             <option value="extract">テキスト抽出</option>
-                            <option value="layer">Canva用SVG</option>
+                            <option value="layer">Canva用PPTX</option>
                             <option value="design">デザインごと抽出</option>
                             <option value="structured">構造化抽出</option>
                             <option value="translate">抽出+英訳</option>
                         </select>
                         <button class="btn btn-secondary" id="copyBtn" onclick="copyText()">コピー</button>
-                        <button class="btn btn-secondary" id="svgDlBtn" style="display:none" onclick="downloadSVGTextOnly()">SVG DL (背景透過)</button>
+                        <button class="btn btn-secondary" id="svgDlBtn" style="display:none" onclick="downloadPPTX()">PPTX DL</button>
                     </div>
                 </div>
                 <div class="design-tabs" id="designTabs">
@@ -190,13 +191,13 @@
         <!-- レイヤーエディタ（全幅表示） -->
         <div class="layer-editor-wrapper" id="layerEditorWrapper">
             <div class="layer-editor-header">
-                <span class="panel-title">SVGプレビュー — 背景透過・テキストのみ</span>
+                <span class="panel-title">テキスト抽出結果</span>
                 <div class="btn-group">
-                    <button class="btn btn-secondary" onclick="downloadSVGTextOnly()">SVG DL (背景透過)</button>
+                    <button class="btn btn-secondary" onclick="downloadPPTX()">PPTX DL</button>
                 </div>
             </div>
             <div class="layer-editor-container" id="layerEditorContainer"></div>
-            <p class="layer-hint">Canvaにこの SVG をアップロードすると、テキストが個別に編集できます</p>
+            <p class="layer-hint">PPTXをダウンロードしてCanvaにインポートすると、テキストが個別に編集できます</p>
         </div>
     </div>
 
@@ -288,25 +289,6 @@
 - 色は元画像から正確に推定
 - テキストの改行は\\nで表現
 - 全テキストを漏れなく含めること（小さい文字も見落とさない）`,
-
-            layer_generate: `以下のJSON分析データに基づいて、SVGコードを生成してください。元画像も添付するので、最終確認に使ってください。
-
-## 分析データ:
-{analysis}
-
-## 生成ルール:
-- <svg>から</svg>まで、SVGコードのみ出力（説明・コードブロック不要）
-- viewBoxは分析データのimage寸法に基づいて設定（例: "0 0 1200 675"）
-- 各要素の%座標をviewBoxのpx値に変換して配置
-- ★テキスト(<text>要素)のみ出力する。<rect>/<polygon>/<line>/<circle>等の図形要素は一切含めない
-- font-family="Noto Sans JP, sans-serif"
-- テキストの改行は<tspan>で再現
-- 背景は透過（背景色・画像・写真・装飾は一切含めない）
-- Canvaにインポートしてテキスト編集する用途なので、テキストは必ず<text>要素で
-
-## 重要: 被り防止
-- verticalOrderを確認し、テキスト同士が重ならないようにy座標を配置
-- 元画像と見比べて、テキスト同士の間隔が正しいか最終確認すること`,
 
             layer: null,
             design: `この画像のテキストデザインをHTML/CSSで完全に再現してください。
@@ -468,10 +450,9 @@
             extractedText.value = '';
 
             try {
-                // layerモード: 2パス（分析→SVG生成）
+                // layerモード: 1パス（分析→PPTX生成はクライアント側）
                 if (mode === 'layer') {
-                    // Pass 1: 画像分析
-                    statusEl.textContent = 'Pass 1/2: 画像を分析中...';
+                    statusEl.textContent = '画像を分析中...';
                     const analysis = await callClaudeAPI(apiKey, [{
                         role: 'user',
                         content: [
@@ -480,18 +461,8 @@
                         ]
                     }], 4096);
 
-                    // Pass 2: 分析結果 + 元画像でSVG生成
-                    statusEl.textContent = 'Pass 2/2: SVG生成中...';
-                    const svgPrompt = prompts.layer_generate.replace('{analysis}', analysis);
-                    const svgResult = await callClaudeAPI(apiKey, [{
-                        role: 'user',
-                        content: [
-                            { type: 'image', source: { type: 'base64', media_type: currentMediaType, data: currentImageBase64 } },
-                            { type: 'text', text: svgPrompt }
-                        ]
-                    }], 8192);
-
-                    handleLayerResult(svgResult);
+                    statusEl.textContent = 'PPTX生成中...';
+                    handleLayerResult(analysis);
                 } else {
                     // 通常モード: 1パス
                     const text = await callClaudeAPI(apiKey, [{
@@ -518,53 +489,101 @@
             }
         }
 
-        // === Canva用SVG ===
-        let lastSVGCode = '';
+        // === Canva用PPTX ===
+        let lastAnalysisData = null;
 
         function handleLayerResult(text) {
             setNormalMode();
 
-            // SVGコードを抽出（```で囲まれてる場合も対処）
-            let svgCode = text.trim();
-            svgCode = svgCode.replace(/^```(?:svg|xml)?\n?/i, '').replace(/\n?```$/i, '').trim();
+            // JSONを抽出（```で囲まれてる場合も対処）
+            let jsonStr = text.trim();
+            jsonStr = jsonStr.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
 
-            // <svg> タグが含まれてるか確認
-            const svgMatch = svgCode.match(/<svg[\s\S]*<\/svg>/i);
-            if (!svgMatch) {
-                extractedText.value = 'SVG生成エラー。生データ:\n\n' + text;
+            try {
+                lastAnalysisData = JSON.parse(jsonStr);
+            } catch (e) {
+                extractedText.value = 'JSON解析エラー。生データ:\n\n' + text;
                 return;
             }
-            svgCode = svgMatch[0];
 
-            // xml宣言を追加
-            lastSVGCode = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgCode;
+            extractedText.value = JSON.stringify(lastAnalysisData, null, 2);
 
-            extractedText.value = lastSVGCode;
-
-            // SVGボタン表示
+            // PPTXボタン表示
             document.getElementById('svgDlBtn').style.display = '';
 
-            // プレビュー（暗い背景でテキストが見えるように）
+            // プレビュー（テキスト位置の確認用）
             layerEditorContainer.innerHTML = '';
             const previewDiv = document.createElement('div');
             previewDiv.style.background = '#222';
             previewDiv.style.borderRadius = '8px';
-            previewDiv.style.padding = '8px';
-            previewDiv.innerHTML = svgCode;
-            const svgEl = previewDiv.querySelector('svg');
-            if (svgEl) {
-                svgEl.style.maxWidth = '100%';
-                svgEl.style.height = 'auto';
-            }
-            layerEditorContainer.appendChild(previewDiv);
+            previewDiv.style.padding = '16px';
+            previewDiv.style.position = 'relative';
+            const imgData = lastAnalysisData.image || {};
+            const aspect = (imgData.height || 675) / (imgData.width || 1200);
+            previewDiv.style.width = '100%';
+            previewDiv.style.paddingBottom = (aspect * 100) + '%';
 
+            (lastAnalysisData.elements || []).forEach(el => {
+                if (el.type !== 'text') return;
+                const span = document.createElement('div');
+                span.style.position = 'absolute';
+                span.style.left = el.x + '%';
+                span.style.top = el.y + '%';
+                span.style.color = el.textColor || '#ffffff';
+                span.style.fontSize = Math.max(8, (el.fontSize || 16) * 0.5) + 'px';
+                span.style.fontWeight = el.fontWeight === 'bold' || el.fontWeight === '900' ? 'bold' : 'normal';
+                span.style.fontFamily = 'Noto Sans JP, sans-serif';
+                span.style.whiteSpace = 'pre-wrap';
+                span.textContent = (el.text || '').replace(/\\n/g, '\n');
+                previewDiv.appendChild(span);
+            });
+
+            layerEditorContainer.appendChild(previewDiv);
             layerEditorWrapper.classList.add('show');
         }
 
-        function downloadSVGTextOnly() {
-            if (!lastSVGCode) return;
-            downloadFile(lastSVGCode, 'text-layers.svg', 'image/svg+xml');
-            showToast('SVGをダウンロード！');
+        function downloadPPTX() {
+            if (!lastAnalysisData) return;
+
+            const imgData = lastAnalysisData.image || {};
+            const imgW = imgData.width || 1200;
+            const imgH = imgData.height || 675;
+
+            // スライドサイズ（インチ）: 10インチ幅基準
+            const slideW = 10;
+            const slideH = slideW * (imgH / imgW);
+
+            const pptx = new PptxGenJS();
+            pptx.defineLayout({ name: 'CUSTOM', width: slideW, height: slideH });
+            pptx.layout = 'CUSTOM';
+
+            const slide = pptx.addSlide();
+
+            (lastAnalysisData.elements || []).forEach(el => {
+                if (el.type !== 'text') return;
+
+                const text = (el.text || '').replace(/\\n/g, '\n');
+                const xInch = (el.x / 100) * slideW;
+                const yInch = (el.y / 100) * slideH;
+                // px→pt変換: slideW(inch) * 72(pt/inch) / imgW(px) でスケール
+                const fontSizePt = Math.round((el.fontSize || 16) * slideW * 72 / imgW);
+                const color = (el.textColor || '#FFFFFF').replace('#', '');
+
+                slide.addText(text, {
+                    x: xInch,
+                    y: yInch,
+                    fontFace: 'Noto Sans JP',
+                    fontSize: fontSizePt,
+                    color: color,
+                    bold: el.fontWeight === 'bold' || el.fontWeight === '900',
+                    isTextBox: true,
+                    autoFit: true,
+                    wrap: false,
+                });
+            });
+
+            pptx.writeFile({ fileName: 'text-layers.pptx' });
+            showToast('PPTXをダウンロード！');
         }
 
         function downloadFile(content, filename, type) {
