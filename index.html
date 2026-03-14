@@ -174,6 +174,8 @@
                             <option value="translate">抽出+英訳</option>
                         </select>
                         <button class="btn btn-secondary" id="copyBtn" onclick="copyText()">コピー</button>
+                        <button class="btn btn-secondary" id="svgDlBtn" style="display:none" onclick="downloadSVG()">SVG DL</button>
+                        <button class="btn btn-secondary" id="svgTextDlBtn" style="display:none" onclick="downloadSVGTextOnly()">テキストのみSVG</button>
                     </div>
                 </div>
                 <div class="design-tabs" id="designTabs">
@@ -470,6 +472,10 @@
 
                 extractedText.value = layers.map(l => `[${l.fontSize}px ${l.fontWeight} ${l.color}] ${l.text}`).join('\n');
 
+                // SVGボタン表示
+                document.getElementById('svgDlBtn').style.display = '';
+                document.getElementById('svgTextDlBtn').style.display = '';
+
                 // プレビュー表示
                 layerEditorContainer.innerHTML = '';
                 const previewDiv = document.createElement('div');
@@ -587,6 +593,8 @@ ${elements}</svg>`;
             layerEditorWrapper.classList.remove('show');
             lastDesignHTML = '';
             copyBtn.textContent = 'コピー';
+            document.getElementById('svgDlBtn').style.display = 'none';
+            document.getElementById('svgTextDlBtn').style.display = 'none';
         }
 
         function copyText() {
