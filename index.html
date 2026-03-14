@@ -557,7 +557,15 @@
             pptx.defineLayout({ name: 'CUSTOM', width: slideW, height: slideH });
             pptx.layout = 'CUSTOM';
 
-            const slide = pptx.addSlide({ bkgd: '000000' });
+            const slide = pptx.addSlide();
+
+            // 元画像をスライド背景に配置（Canvaで削除してテキストだけ残せる）
+            if (currentImageDataUrl) {
+                slide.addImage({
+                    data: currentImageDataUrl,
+                    x: 0, y: 0, w: slideW, h: slideH,
+                });
+            }
 
             (lastAnalysisData.elements || []).forEach(el => {
                 if (el.type !== 'text') return;
