@@ -333,7 +333,7 @@
             previewImg.style.display = 'block';
             previewPlaceholder.style.display = 'none';
             fetch(name)
-                .then(r => r.blob())
+                .then(r => { if (!r.ok) throw new Error(`画像取得失敗: ${r.status}`); return r.blob(); })
                 .then(blob => blobToBase64(blob))
                 .then(({ base64, mediaType, dataUrl }) => resizeImageIfNeeded(base64, mediaType, dataUrl))
                 .then(({ base64, mediaType, dataUrl }) => {
@@ -341,6 +341,11 @@
                     currentMediaType = mediaType;
                     currentImageDataUrl = dataUrl;
                     extractWithClaude();
+                })
+                .catch(err => {
+                    statusEl.textContent = 'エラー: 画像を読み込めませんでした。ファイルをドラッグ＆ドロップしてください。';
+                    statusEl.className = 'status';
+                    console.error('Gallery fetch error:', err);
                 });
         }
 
@@ -491,7 +496,10 @@
                 statusEl.textContent = '抽出完了！';
                 statusEl.className = 'status';
             } catch (err) {
-                statusEl.textContent = 'エラー: ' + err.message;
+                const msg = err.message === 'Failed to fetch'
+                    ? 'APIに接続できません。ネットワーク接続を確認してください。'
+                    : err.message;
+                statusEl.textContent = 'エラー: ' + msg;
                 statusEl.className = 'status';
             }
         }
