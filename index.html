@@ -580,13 +580,8 @@
 
             const slide = pptx.addSlide();
 
-            // 元画像をスライド背景に配置（Canvaで削除してテキストだけ残せる）
-            if (currentImageDataUrl) {
-                slide.addImage({
-                    data: currentImageDataUrl,
-                    x: 0, y: 0, w: slideW, h: slideH,
-                });
-            }
+            // 元画像は含めない（テキストが焼き付いているため二重表示になる）
+            // 背景色矩形＋テキストボックスのみで構成
 
             const textElements = (lastAnalysisData.elements || []).filter(el => el.type === 'text');
             console.log('PPTX生成: テキスト要素数:', textElements.length, textElements);
