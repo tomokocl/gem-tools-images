@@ -542,7 +542,7 @@
             layerEditorWrapper.classList.add('show');
         }
 
-        function downloadPPTX() {
+        async function downloadPPTX() {
             if (!lastAnalysisData) return;
 
             const imgData = lastAnalysisData.image || {};
@@ -557,7 +557,7 @@
             pptx.defineLayout({ name: 'CUSTOM', width: slideW, height: slideH });
             pptx.layout = 'CUSTOM';
 
-            const slide = pptx.addSlide();
+            const slide = pptx.addSlide({ bkgd: '000000' });
 
             (lastAnalysisData.elements || []).forEach(el => {
                 if (el.type !== 'text') return;
@@ -565,9 +565,9 @@
                 const text = (el.text || '').replace(/\\n/g, '\n');
                 const xInch = (el.x / 100) * slideW;
                 const yInch = (el.y / 100) * slideH;
-                // px→pt変換: slideW(inch) * 72(pt/inch) / imgW(px) でスケール
-                const fontSizePt = Math.round((el.fontSize || 16) * slideW * 72 / imgW);
-                const color = (el.textColor || '#FFFFFF').replace('#', '');
+                // px→pt: 元画像のpxをスライド上のptに変換
+                const fontSizePt = Math.max(8, Math.round((el.fontSize || 16) * slideW * 72 / imgW));
+                const color = (el.textColor || '#FFFFFF').replace(/^#/, '');
 
                 slide.addText(text, {
                     x: xInch,
@@ -577,12 +577,10 @@
                     color: color,
                     bold: el.fontWeight === 'bold' || el.fontWeight === '900',
                     isTextBox: true,
-                    autoFit: true,
-                    wrap: false,
                 });
             });
 
-            pptx.writeFile({ fileName: 'text-layers.pptx' });
+            await pptx.writeFile({ fileName: 'text-layers.pptx' });
             showToast('PPTXをダウンロード！');
         }
 
