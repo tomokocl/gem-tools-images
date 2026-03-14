@@ -247,46 +247,57 @@
         // プロンプト定義
         const prompts = {
             extract: 'この画像に含まれるすべてのテキストを正確に抽出してください。レイアウトや改行をできるだけ保持してください。テキストのみを出力し、説明は不要です。',
-            layer: `この画像のテキスト・装飾をSVGで完全コピーしてください。元画像と重ねたときにピッタリ一致する精度が必要です。
+            layer_analyze: `この画像のテキストと装飾要素をすべて詳細に分析してください。
 
-## 最重要: 元画像の計測に基づくコピー
-自分の想像やデフォルト値で装飾を描かないでください。
-必ず以下の手順で元画像を計測してからSVGを出力してください:
+以下の形式でJSON配列として出力してください（説明不要、JSONのみ）:
 
-1. 画像全体のサイズ（幅×高さ）を確認し、viewBoxを設定
-2. 各テキストについて、画像内での位置（左上からのx,y）・フォントサイズ・色・太さを計測
-3. 各装飾（帯・ライン等）について、画像内での位置・幅・高さ・色を計測
-4. 計測値に基づいてSVGを出力
+{
+  "image": { "width": 推定px, "height": 推定px, "aspect": "16:9等" },
+  "elements": [
+    {
+      "type": "rect" | "text" | "line" | "polygon",
+      "description": "要素の説明",
+      "x": 画像左端からの位置(%),
+      "y": 画像上端からの位置(%),
+      "width": 幅(%),
+      "height": 高さ(%),
+      "color": "#hex色",
+      "fill": "#hex色 or none",
+      "text": "テキスト内容（text要素のみ）",
+      "fontSize": フォントサイズpx推定（text要素のみ）,
+      "fontWeight": "bold等（text要素のみ）",
+      "textColor": "#hex色（text要素のみ）",
+      "rotation": 回転角度（斜めの場合、度数）,
+      "points": "polygon用の頂点座標（%単位）"
+    }
+  ]
+}
 
-例: テキストが画像の上部30%の位置にあり、その背景に帯がある場合
-→ 帯の高さは画像を見て実測。テキストの上下にほぼ余白がなく文字にピッタリ沿った細い帯なら、高さはfont-sizeとほぼ同じにする
-→ 帯がテキストエリア全体を覆う太い帯なら、その太さを忠実に再現する
-→ どちらにするかは元画像を見て判断。デフォルト値は使わない
+注意:
+- 座標と寸法はすべて画像全体に対する%で記述
+- テキスト背景の帯(rect)は、テキストとは別の要素として先に記述
+- 帯のheightは元画像を注意深く見て正確に。テキストにぴったり沿った細い帯なのか、広い帯なのか忠実に
+- 色は元画像から正確に推定
+- 斜めの帯やポリゴンはpointsで頂点を記述
+- テキストの改行は\\nで表現
+- 全テキスト・全装飾を漏れなく含めること`,
 
-## 出力形式
+            layer_generate: `以下のJSON分析データに基づいて、SVGコードを生成してください。
+
+## 分析データ:
+{analysis}
+
+## 生成ルール:
 - <svg>から</svg>まで、SVGコードのみ出力（説明・コードブロック不要）
-- 背景は透過（背景画像・写真・人物は含めない）
-
-## テキスト再現ルール
+- viewBoxは分析データのimage寸法に基づいて設定（例: "0 0 1200 675"）
+- 各要素の%座標をviewBoxのpx値に変換して配置
+- rect要素はtext要素の直前に配置（背景として機能するため）
 - font-family="Noto Sans JP, sans-serif"
-- テキストは1文字も省略せず完全に含める
-- 元画像の改行位置を正確に再現（<tspan>で改行）
-- テキストの色・サイズ・太さ（font-weight）を元画像から計測して忠実に
+- テキストの改行は<tspan>で再現
+- 背景は透過（背景画像・写真・人物は含めない）
+- Canvaにインポートしてテキスト編集する用途なので、テキストは必ず<text>要素で`,
 
-## 装飾再現ルール
-- テキスト背景の帯/ハイライト → <rect>（テキストの直前に配置）
-- 帯の高さ・幅・色・位置はすべて元画像から計測した値を使う
-- 区切り線・罫線 → <line>
-- 装飾的な斜めの帯 → <polygon> や <path>
-
-## よくあるミス（必ず避けること）
-- ❌ 帯の高さを適当に大きくする → 元画像で帯が細いなら細くすること
-- ❌ 帯の色を適当な赤(#FF0000)にする → 元画像の色を忠実に
-- ❌ テキスト位置をだいたいで配置 → 元画像を計測して正確に
-
-## 重要
-- Canvaにインポートしてテキスト編集する用途。テキストは必ず<text>要素で
-- 出力前に元画像と見比べて、帯の太さ・テキスト位置が一致しているか確認してください`,
+            layer: null,
             design: `この画像のテキストデザインをHTML/CSSで完全に再現してください。
 
 ルール:
@@ -412,6 +423,29 @@
             reader.readAsDataURL(file);
         }
 
+        async function callClaudeAPI(apiKey, messages, maxTokens = 4096) {
+            const response = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'anthropic-dangerous-direct-browser-access': 'true'
+                },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: maxTokens,
+                    messages: messages
+                })
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || `API Error: ${response.status}`);
+            }
+            const data = await response.json();
+            return data.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+        }
+
         async function extractWithClaude() {
             const apiKey = apiKeyInput.value.trim();
             if (!apiKey) { statusEl.textContent = 'Claude API Keyを入力してください'; statusEl.className = 'status'; return; }
@@ -423,43 +457,46 @@
             extractedText.value = '';
 
             try {
-                const response = await fetch('https://api.anthropic.com/v1/messages', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
-                        'anthropic-dangerous-direct-browser-access': 'true'
-                    },
-                    body: JSON.stringify({
-                        model: 'claude-sonnet-4-20250514',
-                        max_tokens: (mode === 'design' || mode === 'layer') ? 8192 : 4096,
-                        messages: [{
-                            role: 'user',
-                            content: [
-                                { type: 'image', source: { type: 'base64', media_type: currentMediaType, data: currentImageBase64 } },
-                                { type: 'text', text: prompts[mode] }
-                            ]
-                        }]
-                    })
-                });
-
-                if (!response.ok) {
-                    const err = await response.json();
-                    throw new Error(err.error?.message || `API Error: ${response.status}`);
-                }
-
-                const data = await response.json();
-                const text = data.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
-
-                // モード別処理
+                // layerモード: 2パス（分析→SVG生成）
                 if (mode === 'layer') {
-                    handleLayerResult(text);
-                } else if (mode === 'design') {
-                    handleDesignResult(text);
+                    // Pass 1: 画像分析
+                    statusEl.textContent = 'Pass 1/2: 画像を分析中...';
+                    const analysis = await callClaudeAPI(apiKey, [{
+                        role: 'user',
+                        content: [
+                            { type: 'image', source: { type: 'base64', media_type: currentMediaType, data: currentImageBase64 } },
+                            { type: 'text', text: prompts.layer_analyze }
+                        ]
+                    }], 4096);
+
+                    // Pass 2: 分析結果 + 元画像でSVG生成
+                    statusEl.textContent = 'Pass 2/2: SVG生成中...';
+                    const svgPrompt = prompts.layer_generate.replace('{analysis}', analysis);
+                    const svgResult = await callClaudeAPI(apiKey, [{
+                        role: 'user',
+                        content: [
+                            { type: 'image', source: { type: 'base64', media_type: currentMediaType, data: currentImageBase64 } },
+                            { type: 'text', text: svgPrompt }
+                        ]
+                    }], 8192);
+
+                    handleLayerResult(svgResult);
                 } else {
-                    extractedText.value = text;
-                    setNormalMode();
+                    // 通常モード: 1パス
+                    const text = await callClaudeAPI(apiKey, [{
+                        role: 'user',
+                        content: [
+                            { type: 'image', source: { type: 'base64', media_type: currentMediaType, data: currentImageBase64 } },
+                            { type: 'text', text: prompts[mode] }
+                        ]
+                    }], mode === 'design' ? 8192 : 4096);
+
+                    if (mode === 'design') {
+                        handleDesignResult(text);
+                    } else {
+                        extractedText.value = text;
+                        setNormalMode();
+                    }
                 }
 
                 statusEl.textContent = '抽出完了！';
