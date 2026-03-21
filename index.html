@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>椎葉ともこのAI副業攻略ラボ — 自分専用AIツールを作れた！</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #e8622a;
+      --orange-light: #f07840;
+      --text: #f0f4ff;
+      --muted: #8899b8;
+      --navy: #060d1f;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: var(--navy);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    #starfield {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px 60px;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-series {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      margin-bottom: 28px;
+    }
+
+    .hero-series::before,
+    .hero-series::after {
+      content: '';
+      display: block;
+      width: 40px;
+      height: 1px;
+      background: var(--muted);
+      opacity: 0.5;
+    }
+
+    .hero-lead {
+      font-size: clamp(16px, 4vw, 22px);
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 16px;
+      letter-spacing: 0.06em;
+    }
+
+    .hero-title {
+      font-size: clamp(36px, 8vw, 64px);
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+
+    .hero-title .highlight { color: var(--orange); }
+
+    .hero-subtitle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: clamp(14px, 3vw, 17px);
+      font-weight: 400;
+      color: var(--muted);
+      letter-spacing: 0.18em;
+      margin-top: 24px;
+    }
+
+    .hero-subtitle::before,
+    .hero-subtitle::after {
+      content: '';
+      display: block;
+      width: 6px;
+      height: 6px;
+      background: var(--orange);
+      border-radius: 50%;
+    }
+
+    .hero-catchcopy {
+      font-size: clamp(13px, 3vw, 16px);
+      color: var(--muted);
+      margin-top: 20px;
+      letter-spacing: 0.08em;
+      line-height: 1.6;
+    }
+
+    .plus {
+      position: absolute;
+      color: var(--muted);
+      font-size: 16px;
+      opacity: 0.35;
+      user-select: none;
+      animation: blink 4s ease-in-out infinite;
+    }
+    .plus:nth-child(1) { top: 18%; left: 8%;  animation-delay: 0s; }
+    .plus:nth-child(2) { top: 35%; left: 88%; animation-delay: 1.2s; }
+    .plus:nth-child(3) { top: 70%; left: 5%;  animation-delay: 0.7s; }
+    .plus:nth-child(4) { top: 75%; left: 90%; animation-delay: 2s; }
+    .plus:nth-child(5) { top: 55%; left: 50%; animation-delay: 1.5s; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.15; transform: scale(1); }
+      50%       { opacity: 0.50; transform: scale(1.3); }
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 0;
+    }
+
+    .section {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 56px 24px;
+    }
+
+    /* ===== DATE ===== */
+    .date-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 22px 26px;
+    }
+
+    .date-badge {
+      background: linear-gradient(135deg, rgba(232,98,42,0.85) 0%, rgba(200,60,10,0.85) 100%);
+      border-radius: 10px;
+      padding: 10px 16px;
+      text-align: center;
+      flex-shrink: 0;
+      min-width: 68px;
+    }
+
+    .date-badge .year { font-size: 11px; font-weight: 700; opacity: 0.85; }
+    .date-badge .day  { font-size: 28px; font-weight: 900; line-height: 1.1; }
+
+    .date-meta .part { font-size: 11px; font-weight: 700; color: var(--orange-light); letter-spacing: 0.1em; margin-bottom: 4px; }
+    .date-meta .when { font-size: 19px; font-weight: 700; }
+    .date-meta .time { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    /* ===== LINKS ===== */
+    .sec-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .link-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      text-decoration: none;
+      color: var(--text);
+      margin-bottom: 10px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .link-card:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(232,98,42,0.35);
+    }
+
+    .lc-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .lc-icon svg { width: 18px; height: 18px; fill: #fff; }
+    .lc-icon.x     { background: #000; }
+    .lc-icon.form  { background: #1a73e8; }
+    .lc-icon.tweet { background: #1d9bf0; }
+
+    .lc-text       { flex: 1; }
+    .lc-text .name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .lc-text .url  { font-size: 11px; color: var(--muted); word-break: break-all; }
+    .lc-arrow      { color: var(--muted); font-size: 16px; }
+
+    /* ===== PROFILE ===== */
+    .profile-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 26px;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .p-avatar {
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--orange) 0%, #b03010 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900; color: #fff;
+      flex-shrink: 0;
+    }
+
+    .p-info .name { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+
+    .p-badge {
+      display: inline-block;
+      background: rgba(232,98,42,0.18);
+      border: 1px solid rgba(232,98,42,0.35);
+      color: var(--orange-light);
+      font-size: 11px; font-weight: 600;
+      padding: 2px 10px; border-radius: 20px;
+      letter-spacing: 0.06em; margin-bottom: 8px;
+    }
+
+    .p-desc { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+    .footer {
+      text-align: center;
+      padding: 32px 24px 48px;
+      font-size: 11px;
+      color: rgba(136,153,184,0.3);
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 480px) {
+      .section { padding: 44px 18px; }
+      .date-row { flex-direction: column; align-items: flex-start; }
+      .profile-card { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<div class="page">
+
+  <!-- HERO -->
+  <section class="hero">
+    <span class="plus">+</span>
+    <span class="plus">+</span>
+    <span class="plus">+</span>
+    <span class="plus">+</span>
+    <span class="plus">+</span>
+
+    <div class="hero-series">椎葉ともこのAI副業攻略ラボ</div>
+
+    <div class="hero-lead">サブスク貧乏を抜け出す方法があった</div>
+
+    <h1 class="hero-title">
+      自分専用<span class="highlight">AIツール</span>を<br>
+      作れた！
+    </h1>
+
+    <div class="hero-subtitle">Geminiでゼロから作る体験セミナー</div>
+
+    <div class="hero-catchcopy">「作れた！」の体験が、日常業務を劇的に変える</div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- DATE -->
+  <div class="section" style="padding-bottom:0">
+    <div class="sec-label" style="margin-bottom:18px">開催日時</div>
+    <div class="date-row">
+      <div class="date-badge">
+        <div class="year">2026</div>
+        <div class="day">3/21</div>
+      </div>
+      <div class="date-meta">
+        <div class="when">3月21日（土）</div>
+        <div class="time">21:30 — 22:30</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LINKS -->
+  <div class="section">
+    <div class="sec-label">関連リンク</div>
+
+    <a class="link-card" href="https://x.com/tomo19055918" target="_blank" rel="noopener">
+      <div class="lc-icon x">
+        <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </div>
+      <div class="lc-text">
+        <div class="name">椎葉ともこ — X フォロー</div>
+        <div class="url">x.com/tomo19055918</div>
+      </div>
+      <div class="lc-arrow">›</div>
+    </a>
+
+    <a class="link-card"
+       href="https://docs.google.com/forms/d/e/1FAIpQLSfiqtjdlGeuDmhFXLpc9yqtP_nIf6MCwAoHDxfWEcN5zV1pXg/viewform"
+       target="_blank" rel="noopener">
+      <div class="lc-icon form">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17h8v1H8v-1zm0-3h8v1H8v-1zm0-3h5v1H8v-1z"/></svg>
+      </div>
+      <div class="lc-text">
+        <div class="name">アンケート</div>
+        <div class="url">docs.google.com/forms/…</div>
+      </div>
+      <div class="lc-arrow">›</div>
+    </a>
+
+    <a class="link-card"
+       href="https://twitter.com/intent/tweet?text=%23SHIFTAI%0Ahttps%3A%2F%2Fx.com%2FSHIFT_AI_0%2Fstatus%2F2033845418207895968%3Fs%3D20%0A%0A%E3%80%90%E6%84%9F%E6%83%B3%E3%80%91&openExternalBrowser=1"
+       target="_blank" rel="noopener">
+      <div class="lc-icon tweet">
+        <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </div>
+      <div class="lc-text">
+        <div class="name">X に感想を投稿する</div>
+        <div class="url">#SHIFTAI でポスト</div>
+      </div>
+      <div class="lc-arrow">›</div>
+    </a>
+  </div>
+
+  <hr class="divider">
+
+  <!-- PROFILE -->
+  <div class="section">
+    <div class="sec-label" style="margin-bottom:18px">登壇者</div>
+    <div class="profile-card">
+      <div class="p-avatar">椎</div>
+      <div class="p-info">
+        <div class="name">椎葉 ともこ</div>
+        <div class="p-badge">SHIFT AI 認定講師</div>
+        <div class="p-desc">
+          AI副業攻略ラボ主宰。NotebookLM・Geminiを活用した実践的なAI活用術を発信中。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">SHIFT AI WEBINAR &copy; 2026</div>
+
+</div>
+
+<script>
+(function () {
+  const canvas = document.getElementById('starfield');
+  const ctx = canvas.getContext('2d');
+  let W, H, stars = [], orangeDots = [];
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function rand(a, b) { return Math.random() * (b - a) + a; }
+
+  function init() {
+    stars = [];
+    orangeDots = [];
+    const n = Math.floor(W * H / 4000);
+    for (let i = 0; i < n; i++) {
+      stars.push({ x: rand(0,W), y: rand(0,H), r: rand(0.3,1.6), alpha: rand(0.2,0.9), spd: rand(0.002,0.008), off: rand(0, Math.PI*2) });
+    }
+    for (let i = 0; i < 6; i++) {
+      orangeDots.push({ x: rand(0,W), y: rand(0,H), r: rand(1.5,3), alpha: rand(0.5,1), spd: rand(0.003,0.010), off: rand(0, Math.PI*2) });
+    }
+  }
+
+  let t = 0;
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0,   '#060d1f');
+    g.addColorStop(0.5, '#081020');
+    g.addColorStop(1,   '#060d1f');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    for (const s of stars) {
+      const a = s.alpha * (0.5 + 0.5 * Math.sin(t * s.spd * 60 + s.off));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200,215,255,${a})`;
+      ctx.fill();
+    }
+
+    for (const d of orangeDots) {
+      const a = d.alpha * (0.4 + 0.6 * Math.sin(t * d.spd * 60 + d.off));
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(232,98,42,${a})`;
+      ctx.fill();
+    }
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', () => { resize(); init(); });
+  resize();
+  init();
+  draw();
+})();
+</script>
+
+</body>
+</html>
