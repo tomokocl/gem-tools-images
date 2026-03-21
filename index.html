@@ -217,6 +217,61 @@
     .lc-icon.x     { background: #000; }
     .lc-icon.form  { background: #1a73e8; }
     .lc-icon.tweet { background: #1d9bf0; }
+    .lc-icon.zemi  { background: rgba(232,98,42,0.85); }
+
+    /* ===== ZEMI ===== */
+    .zemi-box {
+      background: linear-gradient(135deg, rgba(232,98,42,0.18) 0%, rgba(232,98,42,0.06) 100%);
+      border: 1px solid rgba(232,98,42,0.35);
+      border-radius: 16px;
+      padding: 36px 28px;
+      text-align: center;
+    }
+
+    .zemi-tag {
+      display: inline-block;
+      background: var(--orange);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      padding: 4px 14px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .zemi-heading {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .zemi-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    .zemi-btn {
+      display: inline-block;
+      background: transparent;
+      color: var(--orange-light);
+      font-size: 15px;
+      font-weight: 700;
+      padding: 13px 44px;
+      border-radius: 50px;
+      text-decoration: none;
+      letter-spacing: 0.06em;
+      border: 2px solid var(--orange);
+      transition: background 0.2s, color 0.2s, transform 0.2s;
+    }
+
+    .zemi-btn:hover {
+      background: rgba(232,98,42,0.15);
+      transform: translateY(-2px);
+    }
 
     .lc-text       { flex: 1; }
     .lc-text .name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
@@ -299,6 +354,25 @@
 
     <div class="hero-catchcopy">「作れた！」の体験が、日常業務を劇的に変える</div>
   </section>
+
+  <hr class="divider">
+
+  <!-- ZEMI -->
+  <div class="section">
+    <div class="zemi-box">
+      <div class="zemi-tag">ゼミ案内</div>
+      <div class="zemi-heading">ゼミに入りたい人はこちら</div>
+      <div class="zemi-desc">
+        SHIFT AIのラーニングプラットフォームで<br>
+        さらに深く学べます。
+      </div>
+      <a class="zemi-btn"
+         href="https://learning.shift-ai.co.jp/members/mjTPK2PDxwQZ/page/p91wUZJtyEow"
+         target="_blank" rel="noopener">
+        ゼミの詳細を見る
+      </a>
+    </div>
+  </div>
 
   <hr class="divider">
 
